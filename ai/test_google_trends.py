@@ -22,8 +22,8 @@ while True:
     print(f"Fetching data and generating graph for '{user_word}'...")
 
     try:
-        # Fetch data for the last 12 months in the PH
-        pytrends.build_payload(keyword, cat=0, timeframe='today 12-m', geo='PH')
+        # This manually requests a clean, fixed 24-month window
+        pytrends.build_payload(keyword, cat=0, timeframe='2024-05-01 2026-05-01', geo='PH')
         data = pytrends.interest_over_time()
 
         if not data.empty:

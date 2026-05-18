@@ -109,3 +109,38 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* ─── Header Layout ──────────────────────────────────────────────────────── */
+.site-header {
+  max-width: 780px;       /* Match your exact page content width */
+  margin: 0 auto;         /* Centers the header box on the screen */
+  padding: 2rem 2rem 0;   /* Matches the page's side padding so edge items align */
+  width: 100%;            /* Ensures responsiveness on smaller viewports */
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end; /* Keeps your badges on the right side */
+}
+
+.header-badge {
+  text-decoration: none; /* 🚀 This removes the underline */
+  
+  /* Keep your existing styles below */
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  border: 1px solid var(--paper-border);
+  padding: 5px 12px;
+  border-radius: 2px;
+  background: transparent;
+  margin: 5px;
+}
+
+.header-badge:hover {
+  color: var(--accent);            /* Changes text color on hover */
+  border-color: var(--accent-dim); /* Changes border color on hover */
+  background: var(--accent-bg);    /* Optional: adds a soft background tint */
+}

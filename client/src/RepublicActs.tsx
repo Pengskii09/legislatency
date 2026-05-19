@@ -1,100 +1,27 @@
 import React, { useState, useMemo, useEffect } from "react";
-// import { Link } from "react-router-dom";
 import "./RepublicActs.css";
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 interface RepublicAct {
   id: string;
-  number: string; // Maps to "Republic Act Number"
-  shortTitle: string; // Maps to "Short Title"
-  title: string; // Maps to "Full Title"
-  dateSigned: string; // Maps to "Date Signed"
-  yearSigned: number; // Extracted safely for sorting purposes
-  primaryCommittee: string; // Maps to "Primary Committee"
-  category: string; // Maps to "Macro-Category"
+  number: string;
+  shortTitle: string;
+  title: string;
+  dateSigned: string;
+  yearSigned: number;
+  primaryCommittee: string;
+  category: string;
 }
 
-/* ─── Helper: Commas-In-Quotes Safe CSV Parser ─────────────────────────────── */
-const parseCSV = (text: string): RepublicAct[] => {
-  const lines = text.split(/\r?\n/);
-  if (lines.length < 2) return [];
-
-  // Match columns while ignoring commas that are hidden inside quotation marks
-  const csvRegex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
-
-  // Clean headers to map exactly to the data layout
-  const headers = lines[0]
-    .split(csvRegex)
-    .map((h) => h.replace(/^"|"$/g, "").trim());
-
-  const idxNum = headers.indexOf("Republic Act Number");
-  const idxShort = headers.indexOf("Short Title");
-  const idxFull = headers.indexOf("Full Title");
-  const idxDate = headers.indexOf("Date Signed");
-  const idxComm = headers.indexOf("Primary Committee");
-  const idxCat = headers.indexOf("Macro-Category");
-
-  const parsedActs: RepublicAct[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    if (!lines[i].trim()) continue;
-
-    const columns = lines[i]
-      .split(csvRegex)
-      .map((c) => c.replace(/^"|"$/g, "").trim());
-
-    const dateStr = columns[idxDate] || "";
-    // Extract the last 4 digits for sorting the year properly
-    const yearMatch = dateStr.match(/\d{4}/);
-    const year = yearMatch ? parseInt(yearMatch[0], 10) : 0;
-
-    parsedActs.push({
-      id: `ra-${i}-${Date.now()}`,
-      number: columns[idxNum] || "N/A",
-      shortTitle: columns[idxShort] || columns[idxFull] || "Untitled",
-      title: columns[idxFull] || "No full description provided.",
-      dateSigned: dateStr || "Unknown Date",
-      yearSigned: year,
-      primaryCommittee: columns[idxComm] || "N/A",
-      category: columns[idxCat] || "Uncategorized",
-    });
-  }
-
-  return parsedActs;
-};
-
 /* ─── Sub-components ─────────────────────────────────────────────────────────── */
-const ActCard: React.FC<{ act: RepublicAct; query: string }> = ({
-  act,
-  query,
-}) => {
-  const highlight = (text: string) => {
-    if (!query.trim()) return text;
-    const regex = new RegExp(
-      `(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
-      "gi",
-    );
-    const parts = text.split(regex);
-    return parts.map((part, i) =>
-      regex.test(part) ? (
-        <mark key={i} className="highlight">
-          {part}
-        </mark>
-      ) : (
-        part
-      ),
-    );
-  };
-
+const ActCard: React.FC<{ act: RepublicAct; query: string }> = ({ act }) => {
   return (
     <article className="act-card" tabIndex={0} aria-label={act.shortTitle}>
       <div className="act-card-header">
         <span className="act-number">{act.number}</span>
       </div>
-
-      <h2 className="act-short-title">{highlight(act.shortTitle)}</h2>
-      <p className="act-full-title">{highlight(act.title)}</p>
-
+      <h2 className="act-short-title">{act.shortTitle}</h2>
+      <p className="act-full-title">{act.title}</p>
       <div className="act-meta">
         <span className="meta-item">
           <span className="meta-icon">◈</span>
@@ -115,73 +42,96 @@ const ActCard: React.FC<{ act: RepublicAct; query: string }> = ({
 
 /* ─── Main Component ─────────────────────────────────────────────────────────── */
 const RepublicActs: React.FC = () => {
-  const [acts, setActs] = useState<RepublicAct[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [allActs, setAllActs] = useState<RepublicAct[]>([]);
+  const [results, setResults] = useState<RepublicAct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [committee, setCommittee] = useState("All");
   const [sort, setSort] = useState<"newest" | "oldest" | "number">("newest");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Automatically fetch file from public directory on mount
+  /* ── Load all acts on mount ── */
   useEffect(() => {
-    fetch("/19thcongress_first100.csv")
-      .then((response) => {
-        if (!response.ok) throw new Error("Failed to load CSV source file.");
-        return response.text();
+    fetch("http://localhost:3001/api/acts")
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load acts.");
+        return r.json();
       })
-      .then((text) => {
-        setActs(parseCSV(text));
+      .then((data) => {
+        setAllActs(data.results);
+        setResults(data.results);
         setLoading(false);
       })
-      .catch((error) => {
-        console.error("Error reading congress database file:", error);
+      .catch((err) => {
+        console.error(err);
+        setError("Could not connect to the server on port 3001.");
         setLoading(false);
       });
   }, []);
 
-  // Compute dynamic filters based on current data contents
+  /* ── Semantic search — debounced 300ms ── */
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults(allActs);
+      return;
+    }
+
+    const timeout = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const params = new URLSearchParams({ q: query });
+        const res = await fetch(`http://localhost:3001/api/search?${params}`);
+        if (!res.ok) throw new Error("Search failed.");
+        const data = await res.json();
+        setResults(data.results);
+      } catch (e) {
+        console.error("Search error:", e);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [query, allActs]);
+
+  /* ── Client-side filter + sort on top of results ── */
+  const filtered = useMemo(() => {
+    let r = [...results];
+    if (category !== "All") r = r.filter((a) => a.category === category);
+    if (committee !== "All")
+      r = r.filter((a) => a.primaryCommittee === committee);
+    // Only re-sort when no query — semantic rank takes priority
+    if (!query.trim()) {
+      if (sort === "newest") r.sort((a, b) => b.yearSigned - a.yearSigned);
+      if (sort === "oldest") r.sort((a, b) => a.yearSigned - b.yearSigned);
+      if (sort === "number")
+        r.sort((a, b) =>
+          a.number.localeCompare(b.number, undefined, { numeric: true }),
+        );
+    }
+    return r;
+  }, [results, category, committee, sort, query]);
+
   const categories = useMemo(
-    () => ["All", ...Array.from(new Set(acts.map((a) => a.category))).sort()],
-    [acts],
+    () => [
+      "All",
+      ...Array.from(new Set(allActs.map((a) => a.category))).sort(),
+    ],
+    [allActs],
   );
   const committees = useMemo(
     () => [
       "All",
-      ...Array.from(new Set(acts.map((a) => a.primaryCommittee))).sort(),
+      ...Array.from(new Set(allActs.map((a) => a.primaryCommittee))).sort(),
     ],
-    [acts],
+    [allActs],
   );
 
-  const filtered = useMemo(() => {
-    let result = [...acts];
-
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      result = result.filter(
-        (a) =>
-          a.title.toLowerCase().includes(q) ||
-          a.shortTitle.toLowerCase().includes(q) ||
-          a.number.toLowerCase().includes(q) ||
-          a.primaryCommittee.toLowerCase().includes(q),
-      );
-    }
-    if (category !== "All")
-      result = result.filter((a) => a.category === category);
-    if (committee !== "All")
-      result = result.filter((a) => a.primaryCommittee === committee);
-
-    result.sort((a, b) => {
-      if (sort === "newest") return b.yearSigned - a.yearSigned;
-      if (sort === "oldest") return a.yearSigned - b.yearSigned;
-      return a.number.localeCompare(b.number, undefined, { numeric: true });
-    });
-
-    return result;
-  }, [acts, query, category, committee, sort]);
-
   const hasFilters = category !== "All" || committee !== "All";
-
   const clearFilters = () => {
     setCategory("All");
     setCommittee("All");
@@ -190,15 +140,6 @@ const RepublicActs: React.FC = () => {
   return (
     <div className="ra-page">
       <div className="noise-overlay" aria-hidden="true" />
-
-      {/* <header className="site-header">
-        <Link to="/" className="header-badge">
-          Home Page
-        </Link>
-        <Link to="/republic-acts" className="header-badge">
-          Search list
-        </Link>
-      </header> */}
 
       <main className="ra-main">
         <section className="ra-hero">
@@ -215,14 +156,29 @@ const RepublicActs: React.FC = () => {
           <div className="empty-state">
             <p className="empty-title">Loading Congressional Registry...</p>
           </div>
-        ) : acts.length > 0 ? (
+        ) : error ? (
+          <div
+            className="empty-state"
+            style={{
+              border: "2px dashed var(--paper-border)",
+              padding: "4rem 2rem",
+            }}
+          >
+            <div
+              className="empty-icon"
+              style={{ fontSize: "3rem", color: "var(--accent)" }}
+            >
+              ⚠️
+            </div>
+            <p className="empty-title">Server Unreachable</p>
+            <p className="empty-sub">{error}</p>
+          </div>
+        ) : (
           <>
-            {/* ── Search & Controls ── */}
             <section
               className="ra-controls"
               aria-label="Search configuration panels"
             >
-              {/* Search */}
               <div className="search-field-wrapper">
                 <div className="search-icon" aria-hidden="true">
                   <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -262,7 +218,6 @@ const RepublicActs: React.FC = () => {
                 )}
               </div>
 
-              {/* Controls row */}
               <div className="controls-row">
                 <div className="controls-left">
                   <button
@@ -289,7 +244,6 @@ const RepublicActs: React.FC = () => {
                       <span className="filter-dot" aria-hidden="true" />
                     )}
                   </button>
-
                   {hasFilters && (
                     <button
                       className="clear-filters-btn"
@@ -333,7 +287,6 @@ const RepublicActs: React.FC = () => {
                       ))}
                     </div>
                   </div>
-
                   <div className="filter-group">
                     <span className="filter-group-label">
                       Primary Committee
@@ -354,12 +307,12 @@ const RepublicActs: React.FC = () => {
               )}
             </section>
 
-            {/* ── Results Container ── */}
             <section className="ra-results" aria-live="polite">
               <div className="results-meta">
                 <span className="results-count">
-                  {filtered.length} act{filtered.length !== 1 ? "s" : ""}{" "}
-                  located
+                  {searching
+                    ? "Searching..."
+                    : `${filtered.length} act${filtered.length !== 1 ? "s" : ""} located`}
                 </span>
               </div>
 
@@ -370,32 +323,14 @@ const RepublicActs: React.FC = () => {
                   ))}
                 </div>
               ) : (
-                <div className="empty-state">
-                  <p className="empty-title">Zero records match criteria</p>
-                </div>
+                !searching && (
+                  <div className="empty-state">
+                    <p className="empty-title">Zero records match criteria</p>
+                  </div>
+                )
               )}
             </section>
           </>
-        ) : (
-          <div
-            className="empty-state"
-            style={{
-              border: "2px dashed var(--paper-border)",
-              padding: "4rem 2rem",
-            }}
-          >
-            <div
-              className="empty-icon"
-              style={{ fontSize: "3rem", color: "var(--accent)" }}
-            >
-              ⚠️
-            </div>
-            <p className="empty-title">Database Core Offline</p>
-            <p className="empty-sub">
-              Unable to map entries from 19thcongress_first100.csv. Verify
-              structural attributes inside your public file repository.
-            </p>
-          </div>
         )}
       </main>
 

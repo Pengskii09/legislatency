@@ -147,7 +147,7 @@ body {
   color: var(--ink-muted);
   max-width: 560px;
   line-height: 1.9;
-  /* margin-bottom: 3rem; */
+  margin-inline: auto;
 }
 
 .hero-description em {

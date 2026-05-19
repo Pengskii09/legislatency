@@ -29,11 +29,12 @@ const App: React.FC = () => {
           </h1>
 
           <p className="hero-description">
-            How long does it really take a bill to become law in the
-            Philippines? Not anecdote — <em>math.</em> Enter a policy keyword
-            and we compute an evidence-based forecast of when similar
-            legislation has historically cleared Congress, down to the median,
-            the variance, and the outliers that skew the average.
+            LegisLatency is a search engine that maps the timeline relationship
+            between online public discourse and official state policy. Search
+            Philippine Republic Acts to overlay historical Google Trends peaks,
+            filter laws by category, and access AI-generated summaries and
+            keyword analytics that explain the public interest spikes tied to
+            each law.
           </p>
 
           {/* <div className="stat-strip" aria-label="Sample metrics">

@@ -1,5 +1,23 @@
 node_modules/
 
+# Node dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Python Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python Cache and System files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
 # Secrets
 .env
 .env.local

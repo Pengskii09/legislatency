@@ -1,21 +1,19 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "./HomePage.css";
 
 const App: React.FC = () => {
   const [keyword, setKeyword] = useState<string>("");
+  const navigate = useNavigate();
 
   const handleAnalyze = () => {
-    // Placeholder — AI prediction logic to be wired here
+    if (!keyword.trim()) return;
+    navigate(`/republic-acts?q=${encodeURIComponent(keyword.trim())}`);
   };
 
   return (
     <div className="home-page">
       <div className="noise-overlay" aria-hidden="true" />
-
-      {/* <header className="site-header">
-        <div className="header-badge">Home Page</div>
-        <div className="header-badge">Search</div>
-      </header> */}
 
       <main className="main-content">
         <section className="hero">
@@ -36,23 +34,6 @@ const App: React.FC = () => {
             keyword analytics that explain the public interest spikes tied to
             each law.
           </p>
-
-          {/* <div className="stat-strip" aria-label="Sample metrics">
-            <div className="stat-item">
-              <span className="stat-number">18.4</span>
-              <span className="stat-label">Avg. years to passage</span>
-            </div>
-            <div className="stat-divider" aria-hidden="true" />
-            <div className="stat-item">
-              <span className="stat-number">73%</span>
-              <span className="stat-label">Bills never passed</span>
-            </div>
-            <div className="stat-divider" aria-hidden="true" />
-            <div className="stat-item">
-              <span className="stat-number">19th</span>
-              <span className="stat-label">Current Congress</span>
-            </div>
-          </div> */}
         </section>
 
         <section className="search-section" aria-label="Bill keyword analysis">
@@ -134,48 +115,8 @@ const App: React.FC = () => {
             aria-label="Analyze legislative latency"
           >
             <span className="analyze-btn-text">Begin Search</span>
-            {/* <span className="analyze-btn-icon" aria-hidden="true">
-              →
-            </span> */}
           </button>
-
-          {/* <p className="search-disclaimer">
-            Predictions are statistical estimates based on historical
-            legislative data. Not a guarantee of any legislative outcome.
-          </p> */}
         </section>
-
-        {/* <section className="methodology-strip" aria-label="How it works">
-          <div className="method-card">
-            <div className="method-number">01</div>
-            <div className="method-text">
-              <strong>Corpus</strong>
-              <span>
-                All bills filed in the Philippine Congress since the 8th
-                Congress
-              </span>
-            </div>
-          </div>
-          <div className="method-card">
-            <div className="method-number">02</div>
-            <div className="method-text">
-              <strong>Classification</strong>
-              <span>
-                Keyword-matched against topic clusters using semantic similarity
-              </span>
-            </div>
-          </div>
-          <div className="method-card">
-            <div className="method-number">03</div>
-            <div className="method-text">
-              <strong>Forecast</strong>
-              <span>
-                Median, P10/P90 confidence intervals, and political pressure
-                signals
-              </span>
-            </div>
-          </div>
-        </section> */}
       </main>
 
       <footer className="site-footer">

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import "./RepublicActs.css";
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
@@ -14,7 +15,7 @@ interface RepublicAct {
 }
 
 /* ─── Sub-components ─────────────────────────────────────────────────────────── */
-const ActCard: React.FC<{ act: RepublicAct; query: string }> = ({ act }) => {
+const ActCard: React.FC<{ act: RepublicAct }> = ({ act }) => {
   return (
     <article className="act-card" tabIndex={0} aria-label={act.shortTitle}>
       <div className="act-card-header">
@@ -42,13 +43,17 @@ const ActCard: React.FC<{ act: RepublicAct; query: string }> = ({ act }) => {
 
 /* ─── Main Component ─────────────────────────────────────────────────────────── */
 const RepublicActs: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
   const [allActs, setAllActs] = useState<RepublicAct[]>([]);
   const [results, setResults] = useState<RepublicAct[]>([]);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [query, setQuery] = useState("");
+  // Pre-fill query from URL param (e.g. ?q=education)
+  const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [category, setCategory] = useState("All");
   const [committee, setCommittee] = useState("All");
   const [sort, setSort] = useState<"newest" | "oldest" | "number">("newest");
@@ -72,6 +77,12 @@ const RepublicActs: React.FC = () => {
         setLoading(false);
       });
   }, []);
+
+  /* ── Sync query changes back to URL ── */
+  useEffect(() => {
+    const params = query.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
+    navigate(`/republic-acts${params}`, { replace: true });
+  }, [query]);
 
   /* ── Semantic search — debounced 300ms ── */
   useEffect(() => {
@@ -104,7 +115,6 @@ const RepublicActs: React.FC = () => {
     if (category !== "All") r = r.filter((a) => a.category === category);
     if (committee !== "All")
       r = r.filter((a) => a.primaryCommittee === committee);
-    // Only re-sort when no query — semantic rank takes priority
     if (!query.trim()) {
       if (sort === "newest") r.sort((a, b) => b.yearSigned - a.yearSigned);
       if (sort === "oldest") r.sort((a, b) => a.yearSigned - b.yearSigned);
@@ -319,7 +329,7 @@ const RepublicActs: React.FC = () => {
               {filtered.length > 0 ? (
                 <div className="acts-grid">
                   {filtered.map((act) => (
-                    <ActCard key={act.id} act={act} query={query} />
+                    <ActCard key={act.id} act={act} />
                   ))}
                 </div>
               ) : (

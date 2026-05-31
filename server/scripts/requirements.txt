@@ -6,3 +6,5 @@ torch
 transformers
 huggingface-hub
 numpy
+python-dotenv
+google-genai

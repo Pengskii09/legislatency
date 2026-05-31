@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import "./RepublicActs.css";
 
+const PYTHON_API = "http://localhost:8000";
+
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 interface RepublicAct {
   id: string;
@@ -14,32 +16,136 @@ interface RepublicAct {
   category: string;
 }
 
-/* ─── Sub-components ─────────────────────────────────────────────────────────── */
-const ActCard: React.FC<{ act: RepublicAct }> = ({ act }) => {
+interface Analysis {
+  keyword: string;
+  fallbackUsed: boolean;
+  geminiStatus?: string;
+}
+
+/* ─── Act Detail Panel ───────────────────────────────────────────────────────── */
+const ActDetail: React.FC<{ act: RepublicAct; onClose: () => void }> = ({
+  act,
+  onClose,
+}) => {
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${PYTHON_API}/api/analyze/${encodeURIComponent(act.number)}`)
+      .then((r) => {
+        if (!r.ok) throw new Error("Analysis failed.");
+        return r.json();
+      })
+      .then((data) => {
+        if (data.error) throw new Error(data.error);
+        setAnalysis(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, [act.number]);
+
   return (
-    <article className="act-card" tabIndex={0} aria-label={act.shortTitle}>
-      <div className="act-card-header">
-        <span className="act-number">{act.number}</span>
+    <div className="act-detail-overlay" onClick={onClose}>
+      <div className="act-detail-panel" onClick={(e) => e.stopPropagation()}>
+        <button
+          className="detail-close-btn"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          ×
+        </button>
+
+        <div className="detail-header">
+          <span className="act-number">{act.number}</span>
+          <span className="detail-date">{act.dateSigned}</span>
+        </div>
+
+        <h2 className="detail-short-title">{act.shortTitle}</h2>
+        <p className="detail-full-title">{act.title}</p>
+
+        <div className="act-meta" style={{ marginBottom: "1.5rem" }}>
+          <span className="meta-item">
+            <span className="meta-icon">◈</span>
+            {act.category}
+          </span>
+          <span className="meta-item">
+            <span className="meta-icon">⚙</span>
+            {act.primaryCommittee}
+          </span>
+        </div>
+
+        <div className="detail-analysis">
+          {loading && (
+            <div className="detail-loading">
+              <div className="detail-loading-steps">
+                <span>Querying Gemini...</span>
+              </div>
+            </div>
+          )}
+
+          {error && <p className="detail-error">⚠ Unable to Reach Gemini</p>}
+
+          {analysis && (
+            <div className="detail-section">
+              <h3 className="detail-section-title">
+                <span className="section-number">01</span> Generated Trends
+                Keyword
+              </h3>
+              <div className="keyword-row">
+                <span className="keyword-pill">{analysis.keyword}</span>
+                {analysis.fallbackUsed && (
+                  <span className="fallback-notice">
+                    {analysis.geminiStatus === "quota"
+                      ? "⚠ Gemini Quota Exceeded"
+                      : "⚠ Gemini Unavailable"}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-      <h2 className="act-short-title">{act.shortTitle}</h2>
-      <p className="act-full-title">{act.title}</p>
-      <div className="act-meta">
-        <span className="meta-item">
-          <span className="meta-icon">◈</span>
-          {act.category}
-        </span>
-        <span className="meta-item">
-          <span className="meta-icon">⚙</span>
-          {act.primaryCommittee}
-        </span>
-        <span className="meta-item">
-          <span className="meta-icon">◷</span>
-          {act.dateSigned}
-        </span>
-      </div>
-    </article>
+    </div>
   );
 };
+
+/* ─── Act Card ───────────────────────────────────────────────────────────────── */
+const ActCard: React.FC<{ act: RepublicAct; onClick: () => void }> = ({
+  act,
+  onClick,
+}) => (
+  <article
+    className="act-card"
+    tabIndex={0}
+    onClick={onClick}
+    onKeyDown={(e) => e.key === "Enter" && onClick()}
+    aria-label={act.shortTitle}
+  >
+    <div className="act-card-header">
+      <span className="act-number">{act.number}</span>
+    </div>
+    <h2 className="act-short-title">{act.shortTitle}</h2>
+    <p className="act-full-title">{act.title}</p>
+    <div className="act-meta">
+      <span className="meta-item">
+        <span className="meta-icon">◈</span>
+        {act.category}
+      </span>
+      <span className="meta-item">
+        <span className="meta-icon">⚙</span>
+        {act.primaryCommittee}
+      </span>
+      <span className="meta-item">
+        <span className="meta-icon">◷</span>
+        {act.dateSigned}
+      </span>
+    </div>
+  </article>
+);
 
 /* ─── Main Component ─────────────────────────────────────────────────────────── */
 const RepublicActs: React.FC = () => {
@@ -51,8 +157,8 @@ const RepublicActs: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedAct, setSelectedAct] = useState<RepublicAct | null>(null);
 
-  // Pre-fill query from URL param (e.g. ?q=education)
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [category, setCategory] = useState("All");
   const [committee, setCommittee] = useState("All");
@@ -61,7 +167,7 @@ const RepublicActs: React.FC = () => {
 
   /* ── Load all acts on mount ── */
   useEffect(() => {
-    fetch("http://localhost:8000/api/acts")
+    fetch(`${PYTHON_API}/api/acts`)
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load acts.");
         return r.json();
@@ -73,12 +179,12 @@ const RepublicActs: React.FC = () => {
       })
       .catch((err) => {
         console.error(err);
-        setError("Could not connect to the server on port 8000.");
+        setError("Could not connect to the Python server on port 8000.");
         setLoading(false);
       });
   }, []);
 
-  /* ── Sync query changes back to URL ── */
+  /* ── Sync query to URL ── */
   useEffect(() => {
     const params = query.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
     navigate(`/republic-acts${params}`, { replace: true });
@@ -90,12 +196,12 @@ const RepublicActs: React.FC = () => {
       setResults(allActs);
       return;
     }
-
     const timeout = setTimeout(async () => {
       setSearching(true);
       try {
-        const params = new URLSearchParams({ q: query });
-        const res = await fetch(`http://localhost:8000/api/search?${params}`);
+        const res = await fetch(
+          `${PYTHON_API}/api/search?q=${encodeURIComponent(query)}`,
+        );
         if (!res.ok) throw new Error("Search failed.");
         const data = await res.json();
         setResults(data.results);
@@ -105,11 +211,10 @@ const RepublicActs: React.FC = () => {
         setSearching(false);
       }
     }, 300);
-
     return () => clearTimeout(timeout);
   }, [query, allActs]);
 
-  /* ── Client-side filter + sort on top of results ── */
+  /* ── Client-side filter + sort ── */
   const filtered = useMemo(() => {
     let r = [...results];
     if (category !== "All") r = r.filter((a) => a.category === category);
@@ -151,6 +256,10 @@ const RepublicActs: React.FC = () => {
     <div className="ra-page">
       <div className="noise-overlay" aria-hidden="true" />
 
+      {selectedAct && (
+        <ActDetail act={selectedAct} onClose={() => setSelectedAct(null)} />
+      )}
+
       <main className="ra-main">
         <section className="ra-hero">
           <h1 className="ra-title">
@@ -158,7 +267,7 @@ const RepublicActs: React.FC = () => {
           </h1>
           <p className="ra-description">
             A real-time searchable index tracking legislative records from the
-            19th Congress.
+            19th Congress. Click any act for AI analysis.
           </p>
         </section>
 
@@ -263,7 +372,6 @@ const RepublicActs: React.FC = () => {
                     </button>
                   )}
                 </div>
-
                 <div className="sort-wrapper">
                   <label htmlFor="sort-select" className="sr-only">
                     Sort by
@@ -329,7 +437,11 @@ const RepublicActs: React.FC = () => {
               {filtered.length > 0 ? (
                 <div className="acts-grid">
                   {filtered.map((act) => (
-                    <ActCard key={act.id} act={act} />
+                    <ActCard
+                      key={act.id}
+                      act={act}
+                      onClick={() => setSelectedAct(act)}
+                    />
                   ))}
                 </div>
               ) : (

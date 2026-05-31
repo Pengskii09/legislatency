@@ -61,7 +61,7 @@ const RepublicActs: React.FC = () => {
 
   /* ── Load all acts on mount ── */
   useEffect(() => {
-    fetch("http://localhost:3001/api/acts")
+    fetch("http://localhost:8000/api/acts")
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load acts.");
         return r.json();
@@ -73,7 +73,7 @@ const RepublicActs: React.FC = () => {
       })
       .catch((err) => {
         console.error(err);
-        setError("Could not connect to the server on port 3001.");
+        setError("Could not connect to the server on port 8000.");
         setLoading(false);
       });
   }, []);
@@ -95,7 +95,7 @@ const RepublicActs: React.FC = () => {
       setSearching(true);
       try {
         const params = new URLSearchParams({ q: query });
-        const res = await fetch(`http://localhost:3001/api/search?${params}`);
+        const res = await fetch(`http://localhost:8000/api/search?${params}`);
         if (!res.ok) throw new Error("Search failed.");
         const data = await res.json();
         setResults(data.results);
